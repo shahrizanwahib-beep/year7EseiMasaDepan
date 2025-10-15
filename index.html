@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lisan: Diri Saya Dari Masa Hadapan / Oral: Myself From The Future</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; background: #fff; font-size: 1.1rem; color: #1e293b; }
+    .title { font-size: clamp(2.5rem, 3vw + 1rem, 4.5rem); line-height: 1.1; font-weight: 800; }
+    .btn { border-radius: 14px; font-weight: 700; padding: .8rem 1.5rem; transition: all .1s ease; cursor: pointer; border: none; font-size: 1rem; }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: #6d28d9; color: #fff; }
+    .btn-primary:hover { background: #5b21b6; }
+    .btn-secondary { background: #16a34a; color: #fff; }
+    .btn-secondary:hover { background: #15803d; }
+    .btn-ghost { background: #f1f5f9; color: #0b0f19; }
+    .btn-ghost:hover { background: #e2e8f0; }
+    .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; padding: 1.5rem; }
+    textarea.answer { width: 100%; min-height: 200px; border-radius: 16px; border: 1px solid #cbd5e1; padding: 1rem 1.2rem; outline: none; transition: all 0.2s ease; font-size: 1.1rem; }
+    textarea.answer:focus { border-color: #6d28d9; box-shadow: 0 0 0 4px rgba(109, 40, 217, 0.18); }
+    #toast-container { position: fixed; top: 20px; right: 20px; z-index: 2000; }
+    .toast { background-color: #2d3748; color: white; padding: 0.75rem 1.25rem; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -1px rgba(0,0,0,.06); opacity: 0; transform: translateX(100%); transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55); }
+    .toast.show { opacity: 1; transform: translateX(0); }
+    @keyframes fade-in { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in { animation: fade-in 0.6s ease-out forwards; }
+    .loader { border: 4px solid #f3f3f3; border-top: 4px solid #6d28d9; border-radius: 50%; width: 24px; height: 24px; animation: spin 2s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .ai-feedback-box { background: #f0fdf4; border-left: 5px solid #22c55e; border-radius: 8px; padding: 1rem; font-size: 1rem; margin-top: 1rem; min-height: 50px; }
+    .help-center { background: #f8fafc; border-radius: 16px; padding: 1.5rem; border: 1px solid #e2e8f0; }
+    .translator-input { min-height: 100px !important; font-size: 1rem !important; }
+    .translator-output { min-height: 100px; background: #f1f5f9; border-radius: 12px; padding: 1rem; font-size: 1rem; color: #475569; }
+    .translation { font-size: 0.8em; opacity: 0.9; font-style: italic; font-weight: 500; margin-top: 0.25rem; color: #475569; }
+    .vocab-pill { background: #f3e8ff; border: 1px solid #d8b4fe; border-radius: 12px; padding: 0.75rem 1.25rem; font-weight: 600; font-size: 1.2rem; }
+    .feedback-icon { font-size: 1.5rem; margin-left: 0.5rem; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <div id="toast-container"></div>
+
+  <main id="slide-container" class="w-full flex-grow flex flex-col justify-center px-6 sm:px-10 lg:px-16">
+    <!-- Slides will be rendered here by JavaScript -->
+  </main>
+
+  <div class="w-full px-6 sm:px-10 lg:px-16 mx-auto py-4">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+        <div id="slide-counter" class="text-sm font-bold text-gray-600">Slaid 1 / 7</div>
+        <div class="flex items-center gap-2">
+          <button id="prevBtn" class="btn btn-ghost">← Sebelumnya / Previous</button>
+          <button id="nextBtn" class="btn btn-primary">Seterusnya / Next →</button>
+        </div>
+    </div>
+    <div class="mt-3 text-center text-sm text-slate-500">
+        Gunakan kekunci <strong>← →</strong> untuk navigasi dan <strong>'f'</strong> untuk skrin penuh. / Use <strong>← →</strong> keys to navigate and <strong>'f'</strong> for fullscreen.
+    </div>
+  </div>
+
+  <script>
+    let currentSlide = 0;
+    const GEMINI_API_KEY = "AIzaSyCcYYHdsZZXnb_fweeG6QHGF4hzO0n4lSI";
+    let slide5Correctness = [];
+
+    const slides = [
+      {
+        type: 'intro',
+        title: {ms: 'Siapakah Anda Pada Tahun 2045?', en: 'Who Will You Be in 2045?'},
+        imageUrl: 'https://images.pexels.com/photos/2387793/pexels-photo-2387793.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1',
+        objective: {ms: 'Objektif: Pelajar dapat memperkenalkan diri mereka dari masa hadapan, menggunakan ungkapan masa yang sesuai.', en: 'Objective: Students can introduce their future selves, using appropriate time expressions.'}
+      },
+      {
+        type: 'time_capsule',
+        title: {ms: 'Kapsul Masa: Diri Saya Sekarang', en: 'Time Capsule: Myself Now'},
+        subtitle: {ms: 'Senaraikan butiran tentang diri anda hari ini. Ini akan menjadi "sejarah" untuk diri anda di masa hadapan!', en: 'List details about yourself today. This will be the "history" for your future self!'},
+        prompts: [
+            {ms: 'Hobi saya ialah...', en: 'My hobby is...'},
+            {ms: 'Subjek kegemaran saya ialah...', en: 'My favorite subject is...'},
+            {ms: 'Cita-cita saya ialah...', en: 'My ambition is...'}
+        ]
+      },
+      {
+        type: 'vocab',
+        title: {ms: 'Bank Kosa Kata Masa Hadapan', en: 'Future Vocabulary Bank'},
+        subtitle: {ms: 'Gunakan perkataan dan frasa ini untuk membina cerita masa hadapan anda.', en: 'Use these words and phrases to build your future story.'},
+        time_expressions: [
+            {ms: 'Pada masa hadapan', en: 'In the future'},
+            {ms: 'Dalam 20 tahun', en: 'In 20 years'},
+            {ms: 'Apabila saya dewasa', en: 'When I grow up'},
+            {ms: 'Dahulu, saya...', en: 'Previously, I...'},
+            {ms: 'Kini, saya...', en: 'Now, I...'}
+        ],
+        future_careers: [
+            {ms: 'Jurutera Robotik', en: 'Robotics Engineer'},
+            {ms: 'Pakar Kelestarian', en: 'Sustainability Expert'},
+            {ms: 'Pereka Realiti Maya', en: 'VR Designer'},
+            {ms: 'Angkasawan', en: 'Astronaut'}
+        ]
+      },
+      {
+        type: 'structure',
+        title: {ms: 'Struktur Penceritaan: Jambatan Masa', en: 'Story Structure: The Time Bridge'},
+        subtitle: {ms: 'Gunakan formula P-D-K-H untuk menyusun cerita anda.', en: 'Use the P-D-K-H formula to structure your story.'},
+        points: [
+          { letter: 'P', question: {ms: 'Perkenalkan Diri: Siapa anda di masa hadapan? (Nama, Umur, Kerjaya)', en: 'Profile: Who are you in the future? (Name, Age, Career)'} },
+          { letter: 'D', question: {ms: 'Dahulu: Ceritakan tentang diri anda di Tahun 7. (Guna maklumat kapsul masa)', en: 'Past: Tell us about your Year 7 self. (Use time capsule info)'} },
+          { letter: 'K', question: {ms: 'Kini: Terangkan apa yang anda lakukan sekarang (di masa hadapan).', en: 'Present: Explain what you do now (in the future).'} },
+          { letter: 'H', question: {ms: 'Harapan: Apakah nasihat anda untuk diri anda yang lebih muda?', en: 'Hope: What is your advice for your younger self?'} }
+        ]
+      },
+      {
+        type: 'interactive_exercise',
+        title: {ms: 'Latihan: Mesin Masa Ayat', en: 'Practice: Sentence Time Machine'},
+        subtitle: {ms: 'Lengkapkan ayat-ayat ini dengan ungkapan masa yang betul.', en: 'Complete these sentences with the correct time expressions.'},
+        questions: [
+            {type: 'fill_in_blank', question: '______ saya dewasa, saya akan menjadi seorang saintis.', en_question: '______ I grow up, I will be a scientist.', options: ['Apabila', 'Dahulu', 'Semalam'], answer: 'Apabila'},
+            {type: 'fill_in_blank', question: '______ , saya seorang pelajar, tetapi kini saya seorang jurutera.', en_question: '______ , I was a student, but now I am an engineer.', options: ['Semalam', 'Dahulu', 'Esok'], answer: 'Dahulu'},
+            {type: 'fill_in_blank', question: 'Saya akan melancong ke angkasa ______ 20 tahun lagi.', en_question: 'I will travel to space ______ 20 years.', options: ['dalam', 'pada', 'sejak'], answer: 'dalam'},
+            {type: 'rearrange', words: ['impian', 'menjadi', 'angkasawan', 'saya.', 'sejak kecil', 'ialah'], answer: 'Impian saya sejak kecil ialah menjadi angkasawan.'},
+            {type: 'rearrange', words: ['akan', 'dunia', 'ciptaan', 'ini', 'mengubah'], answer: 'Ciptaan ini akan mengubah dunia.'},
+            {type: 'transform', prompt: {ms: 'Tukarkan ayat ini:', en: 'Transform this sentence:'}, before: {ms: 'Sekarang, saya suka subjek Sains.', en: 'Now, I like the Science subject.'}, after_prompt: {ms: 'Pada masa hadapan, saya akan...', en: 'In the future, I will...'}, answer: 'bekerja sebagai seorang saintis'},
+            {type: 'transform', prompt: {ms: 'Tukarkan ayat ini:', en: 'Transform this sentence:'}, before: {ms: 'Hobi saya bermain catur.', en: 'My hobby is playing chess.'}, after_prompt: {ms: 'Pada masa hadapan, saya akan...', en: 'In the future, I will...'}, answer: 'menyertai pertandingan catur dunia'}
+        ]
+      },
+      {
+        type: 'practice',
+        title: {ms: 'Giliran Anda: Portal Masa', en: 'Your Turn: Time Portal'},
+        subtitle: {ms: 'Tulis surat dari masa hadapan kepada diri anda sekarang.', en: 'Write a letter from the future to your current self.'}
+      },
+      {
+        type: 'summary',
+        title: {ms: 'Mesej Diterima!', en: 'Message Received!'},
+        subtitle: {ms: 'Ini ialah mesej anda dari masa hadapan. Baca semula dan bersedia untuk berkongsi.', en: 'This is your message from the future. Reread it and get ready to share.'}
+      }
+    ];
+
+    const slideContainer = document.getElementById('slide-container');
+    const slideCounter = document.getElementById('slide-counter');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    
+    async function callGemini(prompt) {
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${GEMINI_API_KEY}`;
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+            });
+            if (!response.ok) throw new Error('API request failed');
+            const data = await response.json();
+            return data.candidates[0].content.parts[0].text;
+        } catch (error) {
+            console.error("Gemini API call failed:", error);
+            throw error;
+        }
+    }
+
+    function showToast(message) {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(() => toast.classList.add('show'), 100);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            toast.addEventListener('transitionend', () => toast.remove());
+        }, 3000);
+    }
+    
+    async function getAIFeedback() {
+        const draftText = document.getElementById('student-draft').value;
+        const feedbackBox = document.getElementById('ai-feedback');
+        if (!draftText.trim()) {
+            showToast('Sila tulis draf anda dahulu. / Please write your draft first.');
+            return;
+        }
+        feedbackBox.innerHTML = '<div class="flex items-center gap-2"><div class="loader"></div><span>Menganalisis mesej masa hadapan anda...</span></div>';
+        const prompt = `You are a creative writing teacher for an advanced Year 7 student. The student has written a self-introduction from their future self. Review their writing.
+        Check for:
+        1.  **Use of Time Expressions:** Did they effectively link their past (Year 7) and future self?
+        2.  **Creativity:** Is the idea interesting?
+        3.  **Structure (P-D-K-H):** Does it loosely follow the structure of introducing their Profile, Past, Present (future), and Hope?
+        
+        Provide simple, encouraging feedback in Malay (with an English translation below it). Use bullet points. Start with a positive comment.
+        Student's Draft: "${draftText}"`;
+
+        try {
+            const feedback = await callGemini(prompt);
+            feedbackBox.innerHTML = feedback.replace(/\*/g, '•');
+        } catch (error) {
+            feedbackBox.innerHTML = '<p class="text-red-600">Maaf, sistem maklum balas sedang mengalami masalah.</p>';
+        }
+    }
+
+    async function convertToSpeech() {
+        const finalDraft = localStorage.getItem('future_self_draft') || '';
+        const speechBox = document.getElementById('ai-speech-log');
+        if (!finalDraft.trim()) {
+            showToast('Sila tulis draf anda dahulu.');
+            return;
+        }
+        speechBox.innerHTML = '<div class="flex items-center gap-2 justify-center"><div class="loader"></div><span>Menukar kepada log audio...</span></div>';
+        const prompt = `You are a scriptwriter. A Year 7 student has written a letter from their future self. Convert this letter into a short, conversational audio log script. Make it sound natural, as if they are speaking to their past self. 
+        Start with something like "Hello [Student's Name], this is you from the future...". Keep the core message the same.
+        
+        Provide the script in both Malay and English. Format it like this:
+        **Skrip Log Audio:**
+        [Script in Malay]
+        
+        **Audio Log Script:**
+        [Script in English]
+        
+        Student's Letter:
+        "${finalDraft}"`;
+
+        try {
+            const script = await callGemini(prompt);
+            speechBox.innerHTML = `<div class="text-left text-xl space-y-4">${script.replace(/\n/g, '<br>').replace(/\*\*/g, '<strong>')}</div>`;
+        } catch (error) {
+            speechBox.innerHTML = '<p class="text-red-600">Maaf, gagal menukar kepada skrip.</p>';
+        }
+    }
+
+    async function translateText(targetLang) {
+        const sourceText = document.getElementById('translator-input').value;
+        const outputBox = document.getElementById('translator-output');
+        if (!sourceText.trim()) {
+            showToast('Sila masukkan teks untuk diterjemah. / Please enter text to translate.');
+            return;
+        }
+        outputBox.innerHTML = '<div class="flex items-center justify-center h-full"><div class="loader"></div></div>';
+        const targetLanguageName = targetLang === 'en' ? 'English' : 'Malay';
+        const prompt = `Translate the following text to ${targetLanguageName}. Provide ONLY the translated text, without any additional explanations or quotation marks.\n\nText to translate:\n"${sourceText}"`;
+        try {
+            const translatedText = await callGemini(prompt);
+            outputBox.textContent = translatedText.trim();
+        } catch (error) {
+            outputBox.innerHTML = '<p class="text-red-600 text-center">Maaf, penterjemahan gagal. / Sorry, translation failed.</p>';
+        }
+    }
+
+    async function expandIdea() {
+        const draftText = document.getElementById('student-draft').value;
+        const outputBox = document.getElementById('idea-expander-output');
+        
+        if (!draftText.trim()) {
+            showToast('Sila tulis sedikit dalam draf anda dahulu. / Please write a little in your draft first.');
+            return;
+        }
+
+        outputBox.innerHTML = '<div class="flex items-center justify-center h-full"><div class="loader"></div></div>';
+        const prompt = `You are a scaffolding assistant for a Year 7 student writing a letter from their future self. Based on their current draft, provide scaffolding help. Do NOT give full sentences.
+        Provide TWO things:
+        1.  **Keywords:** List 3-4 relevant keywords (e.g., journey, challenge, achievement, advice).
+        2.  **Scaffolding Questions:** Ask 1-2 open-ended questions to guide their thinking (e.g., "What was the biggest surprise on your journey to becoming a...?").
+        
+        Keep your response simple and in bullet points, in Malay.
+        
+        Student's Draft:
+        "${draftText}"`;
+        try {
+            const ideas = await callGemini(prompt);
+            outputBox.innerHTML = `<div class="text-left text-base">${ideas.replace(/\*/g, '• ')}</div>`;
+        } catch (error) {
+            outputBox.innerHTML = '<p class="text-red-600 text-center">Maaf, gagal menjana idea. / Sorry, failed to generate ideas.</p>';
+        }
+    }
+
+    async function generateFutureEvent() {
+        const hobby = document.getElementById('capsule-0').value;
+        const subject = document.getElementById('capsule-1').value;
+        const ambition = document.getElementById('capsule-2').value;
+        const outputBox = document.getElementById('future-event-output');
+
+        if (!hobby && !subject && !ambition) {
+            showToast('Sila isi sekurang-kurangnya satu butiran. / Please fill in at least one detail.');
+            return;
+        }
+
+        outputBox.innerHTML = '<div class="flex items-center justify-center h-full"><div class="loader"></div></div>';
+
+        const prompt = `You are a creative storyteller. Based on a Year 7 student's current hobby ('${hobby}'), favorite subject ('${subject}'), and ambition ('${ambition}'), generate one single, exciting, and specific future event or achievement for them in the year 2045. Make it imaginative and inspiring.
+        
+        Respond only with the sentence in both Malay and English, formatted exactly like this:
+        Ramalan Masa Hadapan: [Malay sentence]
+        Future Forecast: [English sentence]`;
+
+        try {
+            const event = await callGemini(prompt);
+            outputBox.innerHTML = `<div class="text-left text-lg">${event.replace(/\n/g, '<br>')}</div>`;
+        } catch (error) {
+            outputBox.innerHTML = '<p class="text-red-600 text-center">Maaf, gagal menjana peristiwa. / Sorry, failed to generate an event.</p>';
+        }
+    }
+    
+    function toggleFullScreen() {
+      if (!document.fullscreenElement) { document.documentElement.requestFullscreen(); } 
+      else { if (document.exitFullscreen) { document.exitFullscreen(); } }
+    }
+    
+    function saveDraft(id, value) {
+        localStorage.setItem(id, value);
+        showToast('Disimpan! / Saved!');
+    }
+
+    function loadDraft(id) {
+        return localStorage.getItem(id) || '';
+    }
+
+    function checkAnswer(userAnswer, correctAnswer, feedbackElId, questionIndex, isButton = false) {
+        const feedbackEl = document.getElementById(feedbackElId);
+        const cleanedUserAnswer = userAnswer.trim().replace(/[.,]/g, '').toLowerCase();
+        const cleanedCorrectAnswer = correctAnswer.trim().replace(/[.,]/g, '').toLowerCase();
+
+        if (cleanedUserAnswer === cleanedCorrectAnswer) {
+            feedbackEl.innerHTML = 'Betul! 👍 / Correct! 👍';
+            feedbackEl.className = 'text-green-600 font-bold feedback-icon';
+            slide5Correctness[questionIndex] = true;
+        } else {
+            slide5Correctness[questionIndex] = false;
+            if (isButton) {
+                feedbackEl.innerHTML = `Salah. Jawapan betul ialah '${correctAnswer}'. Sila pilih semula.<span class="translation block">Incorrect. The correct answer is '${correctAnswer}'. Please select again.</span>`;
+            } else {
+                feedbackEl.innerHTML = `Salah. Jawapan betul ialah "${correctAnswer}". Sila taip semula jawapan yang betul dan semak sekali lagi.<span class="translation block">Incorrect. The correct answer is "${correctAnswer}". Please retype the correct answer and check again.</span>`;
+            }
+            feedbackEl.className = 'text-red-600 font-bold text-sm mt-2';
+        }
+        updateNav();
+    }
+
+    function renderSlide() {
+        const slide = slides[currentSlide];
+        let content = '';
+        slideContainer.innerHTML = '';
+
+        if (slide.type === 'intro') {
+            content = `
+                <div class="text-center animate-fade-in">
+                    <h1 class="title mb-2 max-w-6xl mx-auto">${slide.title.ms}</h1>
+                    <p class="text-3xl text-slate-500 font-medium mb-8">${slide.title.en}</p>
+                    <div class="max-w-7xl mx-auto rounded-2xl overflow-hidden mb-8 shadow-lg bg-gray-200" style="height: 55vh;">
+                        <img src="${slide.imageUrl}" alt="Gambaran masa hadapan" class="w-full h-full object-cover">
+                    </div>
+                    <p class="text-2xl text-slate-700 max-w-4xl mx-auto">${slide.objective.ms}<span class="translation block">${slide.objective.en}</span></p>
+                </div>`;
+        } else if (slide.type === 'time_capsule') {
+             content = `
+                <div class="animate-fade-in max-w-5xl mx-auto">
+                    <div class="text-center mb-10">
+                        <h1 class="title mb-2">${slide.title.ms}</h1>
+                        <p class="text-3xl text-slate-500 font-medium">${slide.title.en}</p>
+                        <p class="text-2xl text-slate-600 mt-4">${slide.subtitle.ms}<span class="translation block">${slide.subtitle.en}</span></p>
+                    </div>
+                    <div class="space-y-6">
+                        ${slide.prompts.map((p, i) => `
+                            <div class="info-card">
+                                <label class="font-bold text-2xl">${p.ms}<span class="translation block">${p.en}</span></label>
+                                <input type="text" id="capsule-${i}" class="mt-2 w-full text-xl p-2 border-b-2 border-slate-300 focus:outline-none focus:border-purple-500 bg-transparent" placeholder="Jawapan anda / Your answer...">
+                            </div>
+                        `).join('')}
+                    </div>
+                     <div class="mt-8 text-center">
+                        <button class="btn btn-primary" onclick="saveDraft('time_capsule_0', document.getElementById('capsule-0').value); saveDraft('time_capsule_1', document.getElementById('capsule-1').value); saveDraft('time_capsule_2', document.getElementById('capsule-2').value);">Simpan Kapsul Masa / Save Time Capsule</button>
+                     </div>
+                     <div class="mt-8 info-card">
+                         <h3 class="font-bold text-2xl mb-4 text-center">Dapatkan Inspirasi! / Get Inspired!</h3>
+                         <button class="btn btn-secondary w-full" onclick="generateFutureEvent()">✨ Jana Peristiwa Masa Hadapan / Generate a Future Event</button>
+                         <div id="future-event-output" class="mt-4 p-4 bg-green-50 rounded-lg text-lg min-h-[100px] flex items-center justify-center">
+                            Ramalan masa hadapan anda akan muncul di sini. / Your future forecast will appear here.
+                         </div>
+                     </div>
+                </div>`;
+        } else if (slide.type === 'vocab') {
+            content = `
+                <div class="animate-fade-in max-w-5xl mx-auto">
+                    <div class="text-center mb-10">
+                        <h1 class="title mb-2">${slide.title.ms}</h1>
+                        <p class="text-3xl text-slate-500 font-medium">${slide.title.en}</p>
+                        <p class="text-2xl text-slate-600 mt-4">${slide.subtitle.ms}<span class="translation block">${slide.subtitle.en}</span></p>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-8">
+                        <div>
+                            <h3 class="font-bold text-3xl mb-4">Ungkapan Masa <span class="translation block">Time Expressions</span></h3>
+                            <div class="space-y-3">
+                                ${slide.time_expressions.map(v => `<div class="vocab-pill">${v.ms}<span class="translation block">${v.en}</span></div>`).join('')}
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-3xl mb-4">Kerjaya Futuristik <span class="translation block">Futuristic Careers</span></h3>
+                            <div class="space-y-3">
+                                ${slide.future_careers.map(v => `<div class="vocab-pill">${v.ms}<span class="translation block">${v.en}</span></div>`).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        } else if (slide.type === 'structure') {
+             content = `
+                <div class="animate-fade-in max-w-5xl mx-auto">
+                    <div class="text-center mb-10">
+                        <h1 class="title mb-2">${slide.title.ms}</h1>
+                        <p class="text-3xl text-slate-500 font-medium">${slide.title.en}</p>
+                        <p class="text-2xl text-slate-600 mt-4">${slide.subtitle.ms}<span class="translation block">${slide.subtitle.en}</span></p>
+                    </div>
+                    <div class="space-y-6">
+                        ${slide.points.map(p => `
+                            <div class="p-6 bg-slate-50 rounded-lg border border-slate-200">
+                                <div class="flex items-start gap-5">
+                                    <div class="flex-shrink-0 w-16 h-16 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-3xl">${p.letter}</div>
+                                    <div>
+                                        <h3 class="font-bold text-3xl">${p.question.ms}<span class="translation block">${p.question.en}</span></h3>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>`;
+        } else if (slide.type === 'interactive_exercise') {
+            slide5Correctness = new Array(slide.questions.length).fill(false);
+            content = `
+                <div class="animate-fade-in max-w-5xl mx-auto">
+                    <div class="text-center mb-10">
+                        <h1 class="title mb-2">${slide.title.ms}</h1>
+                        <p class="text-3xl text-slate-500 font-medium">${slide.title.en}</p>
+                        <p class="text-2xl text-slate-600 mt-4">${slide.subtitle.ms}<span class="translation block">${slide.subtitle.en}</span></p>
+                    </div>
+                    <div class="space-y-6">
+                        ${slide.questions.map((q, index) => {
+                            if (q.type === 'fill_in_blank') {
+                                return `
+                                <div class="info-card">
+                                    <p class="text-xl mb-4">${index + 1}. ${q.question.replace('______', '<span class="font-bold text-purple-600">______</span>')}<span class="translation block">${q.en_question.replace('______', '<span class="font-bold text-purple-600">______</span>')}</span></p>
+                                    <div class="flex flex-wrap gap-4 items-center">
+                                        ${q.options.map(opt => `<button class="btn btn-ghost" onclick="checkAnswer('${opt}', '${q.answer}', 'feedback-${index}', ${index}, true)">${opt}</button>`).join('')}
+                                        <div id="feedback-${index}" class="ml-4"></div>
+                                    </div>
+                                </div>`;
+                            } else if (q.type === 'rearrange') {
+                                return `
+                                <div class="info-card">
+                                    <p class="font-bold text-xl mb-4">${index + 1}. Susun semula perkataan / Rearrange the words:</p>
+                                    <div class="p-4 bg-slate-200 rounded-lg flex flex-wrap gap-3 mb-4">
+                                        ${q.words.map(w => `<span class="bg-white py-1 px-3 rounded-md shadow-sm">${w}</span>`).join('')}
+                                    </div>
+                                    <input type="text" id="answer-${index}" class="w-full text-xl p-2 border-b-2 border-slate-300 focus:outline-none focus:border-purple-500 bg-transparent" placeholder="Jawapan anda / Your answer...">
+                                    <div class="mt-4 flex flex-wrap gap-4 items-center">
+                                        <button class="btn btn-primary" onclick="checkAnswer(document.getElementById('answer-${index}').value, '${q.answer}', 'feedback-${index}', ${index})">Semak / Check</button>
+                                        <div id="feedback-${index}" class="ml-4"></div>
+                                    </div>
+                                </div>`;
+                            } else if (q.type === 'transform') {
+                                return `
+                                <div class="info-card">
+                                    <p class="font-bold text-xl mb-2">${index + 1}. ${q.prompt.ms}<span class="translation block">${q.prompt.en}</span></p>
+                                    <p class="p-3 bg-slate-200 rounded-md text-lg mb-4">"${q.before.ms}" <span class="translation">(${q.before.en})</span></p>
+                                    <label class="font-bold text-lg">${q.after_prompt.ms} <span class="translation">(${q.after_prompt.en})</span></label>
+                                    <input type="text" id="answer-${index}" class="mt-2 w-full text-xl p-2 border-b-2 border-slate-300 focus:outline-none focus:border-purple-500 bg-transparent" placeholder="...">
+                                    <div class="mt-4 flex flex-wrap gap-4 items-center">
+                                        <button class="btn btn-primary" onclick="checkAnswer(document.getElementById('answer-${index}').value, '${q.answer}', 'feedback-${index}', ${index})">Semak / Check</button>
+                                        <div id="feedback-${index}" class="ml-4"></div>
+                                    </div>
+                                </div>`;
+                            }
+                        }).join('')}
+                    </div>
+                </div>`;
+        } else if (slide.type === 'practice') {
+            content = `
+                <div class="animate-fade-in max-w-full mx-auto">
+                    <div class="text-center mb-8">
+                        <h1 class="title mb-2">${slide.title.ms}</h1>
+                        <p class="text-3xl text-slate-500 font-medium">${slide.title.en}</p>
+                        <p class="text-2xl text-slate-600 mt-4">${slide.subtitle.ms}<span class="translation block">${slide.subtitle.en}</span></p>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div class="lg:col-span-2">
+                            <textarea id="student-draft" class="answer !min-h-[500px] h-full" placeholder="Mulakan surat anda... Contoh: Helo diri saya di masa lalu! Ini ialah saya, [Nama], dari tahun 2045... / Start your letter... Example: Hello past me! This is me, [Name], from the year 2045..."></textarea>
+                            <div class="mt-4 flex flex-wrap gap-3 items-center">
+                                <button class="btn btn-primary" onclick="saveDraft('future_self_draft', document.getElementById('student-draft').value)">Simpan Draf / Save Draft</button>
+                                <button class="btn btn-secondary" onclick="getAIFeedback()">✨ Semak Mesej Saya / Check My Message</button>
+                            </div>
+                            <div id="ai-feedback" class="ai-feedback-box">Klik butang semak untuk mendapatkan maklum balas. / Click the check button to get feedback.</div>
+                        </div>
+                        <div class="lg:col-span-1">
+                            <div class="help-center space-y-6">
+                                <div>
+                                    <h3 class="font-bold text-2xl mb-4 flex items-center gap-3">💡 <div>Bantuan Perancah AI <span class="translation block">AI Scaffolding Help</span></div></h3>
+                                    <p class="text-base text-slate-600 mb-3">Jika anda buntu, AI boleh memberikan kata kunci dan soalan untuk merangsang idea anda. / If you're stuck, AI can provide keywords and questions to spark your ideas.</p>
+                                    <button class="btn btn-secondary w-full !bg-purple-600 hover:!bg-purple-700" onclick="expandIdea()">✨ Bantu Saya / Help Me</button>
+                                    <div id="idea-expander-output" class="mt-4 p-4 bg-purple-50 rounded-lg text-base min-h-[100px] flex items-center justify-center">
+                                        Kata kunci dan soalan akan muncul di sini. / Keywords and questions will appear here.
+                                    </div>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-2xl mb-4 flex items-center gap-3"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-purple-600 flex-shrink-0"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="m7 2 3.5 3.5"/><path d="m10 18 5-5"/><path d="m2 19h16"/><path d="M14 4.5 19.5 10"/><path d="m19 2 2.5 2.5"/><path d="m22 7-1.5 1.5"/></svg> <div>Alat Terjemahan <span class="translation block">Translation Tool</span></div></h3>
+                                    <div class="space-y-3">
+                                        <textarea id="translator-input" class="answer translator-input" placeholder="Taip teks untuk terjemah... / Type text to translate..."></textarea>
+                                        <div class="flex gap-2 justify-center">
+                                            <button class="btn btn-ghost text-sm flex-grow" onclick="translateText('en')">Terjemah ke English</button>
+                                            <button class="btn btn-ghost text-sm flex-grow" onclick="translateText('ms')">Terjemah ke Melayu</button>
+                                        </div>
+                                        <div id="translator-output" class="translator-output flex items-center justify-center">Hasil terjemahan akan muncul di sini. / Translation will appear here.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        } else if (slide.type === 'summary') {
+            const finalDraft = loadDraft('future_self_draft') || '<em>Mesej anda dari masa hadapan belum ditulis. / Your message from the future has not been written yet.</em>';
+            content = `
+                <div class="text-center animate-fade-in">
+                    <h1 class="title mb-2">${slide.title.ms}</h1>
+                    <p class="text-3xl text-slate-500 font-medium mb-8">${slide.title.en}</p>
+                    <p class="text-2xl text-slate-600 mb-8">${slide.subtitle.ms}<span class="translation block">${slide.subtitle.en}</span></p>
+                    <div class="mt-4 p-8 bg-slate-50 border border-slate-200 rounded-lg text-left text-xl max-w-5xl mx-auto leading-relaxed">
+                        <p>${finalDraft.replace(/\n/g, '<br>')}</p>
+                    </div>
+                    <div class="mt-10 max-w-5xl mx-auto">
+                        <button class="btn btn-secondary w-full sm:w-auto" onclick="convertToSpeech()">✨ Tukar kepada Log Audio / Convert to Audio Log</button>
+                        <div id="ai-speech-log" class="mt-6 p-6 bg-green-50 border border-green-200 rounded-lg text-lg">
+                            Klik butang untuk menukar surat anda kepada skrip log audio! / Click the button to turn your letter into an audio log script!
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        slideContainer.innerHTML = content;
+        updateNav();
+        
+        if (slide.type === 'time_capsule') {
+            document.getElementById('capsule-0').value = loadDraft('time_capsule_0');
+            document.getElementById('capsule-1').value = loadDraft('time_capsule_1');
+            document.getElementById('capsule-2').value = loadDraft('time_capsule_2');
+        }
+        if (slide.type === 'practice') {
+            document.getElementById('student-draft').value = loadDraft('future_self_draft');
+        }
+    }
+
+    function updateNav() {
+        slideCounter.textContent = `Slaid ${currentSlide + 1} / ${slides.length} (Slide ${currentSlide + 1} / ${slides.length})`;
+        prevBtn.disabled = currentSlide === 0;
+
+        if (currentSlide === 4) { // Special logic for slide 5
+            const allCorrect = slide5Correctness.length > 0 && slide5Correctness.every(status => status === true);
+            if(allCorrect && nextBtn.disabled) { 
+                 showToast('Semua jawapan betul! Anda boleh teruskan. / All answers correct! You may proceed.');
+            }
+            nextBtn.disabled = !allCorrect;
+        } else {
+            nextBtn.disabled = currentSlide === slides.length - 1;
+        }
+    }
+    
+    function prevSlide() {
+        if (currentSlide > 0) { currentSlide--; renderSlide(); }
+    }
+
+    function nextSlide() {
+        if (currentSlide < slides.length - 1) { currentSlide++; renderSlide(); }
+    }
+
+    prevBtn.addEventListener('click', prevSlide);
+    nextBtn.addEventListener('click', nextSlide);
+    
+    document.addEventListener('keydown', (e) => {
+        if (document.activeElement.tagName === 'TEXTAREA' || document.activeElement.tagName === 'INPUT') return;
+        if (e.key === 'ArrowRight' && !nextBtn.disabled) nextSlide();
+        else if (e.key === 'ArrowLeft' && !prevBtn.disabled) prevSlide();
+        else if (e.key.toLowerCase() === 'f') { e.preventDefault(); toggleFullScreen(); }
+    });
+
+    renderSlide();
+  </script>
+</body>
+</html>
+
+
